@@ -7,9 +7,9 @@ from flask import current_app, jsonify, request
 def require_api_key(view_func):
     @wraps(view_func)
     def wrapper(*args, **kwargs):
-        api_key = current_app.config.get("ADMIN_API_KEY")
+        api_key = str(current_app.config.get("ADMIN_API_KEY", "")).strip()
         if not api_key:
-            return view_func(*args, **kwargs)
+            return jsonify({"error": "Server API key is not configured"}), 500
 
         provided = request.headers.get("x-api-key", "")
         if provided != api_key:

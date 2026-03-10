@@ -1,98 +1,127 @@
-# Aloware Voice Agent Backend (Python + LiveKit)
+# Aloware Backend - Real Estate Voice Agent
 
-Backend repository for a real-time voice agent that handles a real-estate developer
-assistant scenario (project info + viewing scheduling + confirmations).
+Backend-only repo for a LiveKit voice agent that schedules real estate viewings.
 
-## Setup (Under 5 Minutes)
+## Setup (< 5 minutes)
 
-1. Copy env template:
+1. Copy env example:
    ```bash
    cp .env.example .env
    ```
-2. Fill API keys in `.env` (OpenAI, LiveKit, optional ElevenLabs/Twilio/Google).
-3. Run backend + agent:
+2. Add API keys in `.env`.
+3. Build and run:
    ```bash
    docker-compose up --build
    ```
 
-Backend API: `http://localhost:8000`
+Backend runs on `http://localhost:8000`.
 
-## Companion Frontend Repo
+## Running the LiveKit Agent
 
-The React admin UI lives in a separate repository (`aloware-next`), which configures:
-- System prompt/instructions
-- Persona (name, greeting)
-- Tool availability
+The LiveKit agent is an optional service. Start it with:
 
-## Why LiveKit Agents SDK (instead of Pipecat)
+```bash
+docker-compose --profile agent up --build
+```
 
-I chose LiveKit Agents SDK because it offers:
-- Fast path to real-time voice interactions (room/session primitives)
-- Built-in tool calling and event lifecycle hooks
-- Practical STT/LLM/TTS/realtime model integrations with minimal boilerplate
+The agent reads `data/config.json` for prompt/persona/tools.
 
-Given the one-day constraint, this enabled focus on call quality and orchestration
-instead of custom audio plumbing.
+## LiveKit Setup
 
-## What I Built
+You can use LiveKit Cloud or a local LiveKit server.
 
-- Real-time voice agent for a single development use case
-- Tool orchestration with toggles from admin config
-- Scheduling policy (time window, slot size, conflict prevention)
-- SMS confirmation flow with permission + phone confirmation guardrails
-- Optional per-user Google Calendar event creation during scheduling
-- Runtime prompt composition from:
-  - Admin UI instructions (`system_prompt`)
-  - behavioral prompt
-  - safety prompt
-  - tools prompt
+Required env vars:
 
-## Tools Used in Conversation
+```
+LIVEKIT_URL=
+LIVEKIT_API_KEY=
+LIVEKIT_API_SECRET=
+```
 
-At least 3 tools are available and exercised:
-- `check_availability_tool`
-- `schedule_viewing_tool`
-- `send_sms_confirmation_tool`
-- `get_development_details_tool` (factual grounding)
+Voice mode env vars:
 
-## Guardrails / Safety
+```
+OPENAI_REALTIME_ENABLED=true
+OPENAI_REALTIME_MODEL=gpt-realtime
+OPENAI_REALTIME_VOICE=marin
+```
 
-- Explicit phone number confirmation before SMS
-- Explicit user permission before SMS send
-- Prompt-level safety constraints for sensitive data handling
-- Tool-level validation for phone format and provider responses
+When realtime mode is enabled, the agent uses OpenAI realtime speech for lower latency
+and keeps your existing tool-calling behavior. Set `OPENAI_REALTIME_ENABLED=false` to
+fall back to the chained STT -> LLM -> TTS pipeline.
 
-## Bonus Chosen: Latency
+The backend endpoint `POST /api/agent/session` returns a token, room, identity, and URL.
 
-I chose latency because voice UX breaks quickly when response timing drifts.
-In voice, 200ms vs 800ms feels much larger than in chat due to turn-taking and
-barge-in expectations.
+## Google Calendar OAuth (Per User)
 
-Implemented:
-- Turn-level latency instrumentation (STT final -> first assistant text -> TTS start)
-- Realtime model path with fallback to chained pipeline
+The backend supports per-user Google Calendar connection and event creation during
+`schedule_viewing` calls.
 
-## Key API Endpoints
+Required env vars:
 
-- `POST /api/agent/session` -> room/identity/token/url for voice client
-- `POST /api/agent/call` -> SMS trigger endpoint
-- `GET /api/admin/config` -> fetch agent config
-- `POST /api/admin/config` -> update agent config
-- `POST /api/admin/google/connect`
-- `GET /api/admin/google/callback`
-- `GET /api/admin/google/status`
-- `POST /api/admin/google/disconnect`
+```
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8000/api/admin/google/callback
+GOOGLE_CALENDAR_SCOPES=https://www.googleapis.com/auth/calendar.events
+```
+
+API endpoints:
+
+- `POST /api/admin/google/connect` (requires `x-api-key`) -> returns OAuth URL
+- `GET /api/admin/google/callback` (Google redirect endpoint)
+- `GET /api/admin/google/status?user_id=...` (requires `x-api-key`)
+- `POST /api/admin/google/disconnect` (requires `x-api-key`)
+
+When a user is connected, new viewings create a Google Calendar event first, then
+persist into `data/bookings.json` only after provider success.
+
+## Why LiveKit Agents SDK
+
+LiveKit Agents provides built-in real-time audio handling, tool-calling, and a clean
+VoicePipelineAgent API, so we can focus on the phone experience and tools rather
+than building a custom audio pipeline.
 
 ## Design Decisions
 
-- Layered structure: routes -> controllers -> services -> models
-- JSON storage for one-day implementation simplicity (no DB by design)
-- Prompt modules to keep behavior maintainable
-- Config-driven tool gating for fast operator iteration
+- Flask app factory + layered structure (routes/controllers/services/models).
+- JSON files for config and bookings to avoid database setup.
+- Tool-level guardrails: SMS requires explicit permission.
+- Prompts are modular in `livekit_agent/prompts` with variable injection.
 
 ## What I'd Improve with More Time
 
-- Add automated evals for tool selection and parameter correctness
-- Move persistence from JSON to transactional storage
-- Add stronger auth/rate-limiting hardening for non-local environments
-- Add integration tests for scheduling + provider failure modes
+- Robust session state tracking and retries.
+- Better intent handling and slot filling.
+- Twilio voice/PSTN integration for real phone calls.
+- Automated tests for tool invocation.
+
+## Bonus (Optional)
+
+The agent now emits latency-focused logs per turn (STT final -> first assistant text
+-> TTS start). You can inspect these logs from the `agent` container to identify
+whether delay is mostly STT, LLM generation, or TTS startup.
+
+## Latency Measurement Methodology
+
+The latency dashboard reports turn-level metrics intended to approximate user-perceived
+responsiveness in live calls:
+
+- `primary_response_ms`: headline perceived-response KPI (realtime TTFT when available, otherwise first assistant text timing)
+- `end_to_end_response_ms`: from final user transcript to assistant speech start (preferred), with TTFT fallback when speech-start events are unavailable
+- `stt_to_first_assistant_text_ms`: from final user transcript to first assistant text
+- `assistant_text_to_tts_start_ms`: from first assistant text to speech creation
+- `stt_final_to_tts_start_ms`: diagnostic timing from final transcript to speech lifecycle creation
+
+For realtime mode, assistant text events can be delayed or absent. In those cases,
+the tracker uses realtime model TTFT as the preferred primary-response signal and
+also as a fallback proxy for first assistant response timing.
+
+To improve data quality, the tracker excludes non-usable rows from reporting:
+
+- cancelled realtime turns
+- turns without any numeric latency values
+- synthetic/invalid turn ids (`turn <= 0`)
+
+The dashboard uses percentile summaries (`p50`, `p95`) over a rolling in-memory/file
+window to show both typical latency and worst-case spikes during demos.

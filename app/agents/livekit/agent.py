@@ -1,4 +1,5 @@
 import json
+import inspect
 import logging
 import os
 import re
@@ -9,22 +10,25 @@ from dataclasses import dataclass
 from livekit.agents import AutoSubscribe, JobContext, WorkerOptions, cli, llm
 from livekit.agents.voice import Agent, AgentSession
 from livekit.plugins import elevenlabs, openai, silero
+from openai.types import realtime as openai_realtime_types
 
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+)
 
-from app.config import AppConfig
-from app.services.config_service import load_config
-from app.services.listings_service import search_listings
-from app.services.availability_service import check_availability
-from app.services.scheduling_service import schedule_viewing
-from app.services.sms_service import send_sms_confirmation
-from app.services.development_service import get_development_details
-from app.services.session_context_service import get_user_id_for_room
-from livekit_agent.prompts import (
+from app.agents.livekit.prompts import (
     build_safety_prompt,
     build_system_prompt,
     build_tools_prompt,
 )
+from app.config import AppConfig
+from app.services.availability_service import check_availability
+from app.services.config_service import load_config
+from app.services.development_service import get_development_details
+from app.services.scheduling_service import schedule_viewing
+from app.services.session_context_service import get_user_id_for_room
+from app.services.sms_service import send_sms_confirmation
+from app.services.voice_metrics_service import record_latency_sample
 
 logger = logging.getLogger("voice_latency")
 HIGH_SIGNAL_METRICS = {
@@ -51,48 +55,171 @@ VOICE_NAME_TO_ID = {
 
 
 class TurnLatencyTracker:
-    def __init__(self) -> None:
+    def __init__(self, session_id: str) -> None:
+        self.session_id = session_id
         self.turn_id = 0
+        self._pending_user_audio_started_at = 0.0
+        self._user_audio_started_at = 0.0
         self._turn_started_at = 0.0
         self._final_transcript_at = 0.0
         self._assistant_text_at = 0.0
+        self._assistant_speech_started_at = 0.0
+        self._stt_to_first_assistant_text_ms = 0.0
+        self._realtime_ttft_ms: float | None = None
+        self._realtime_turn_cancelled = False
+        self._last_recorded_turn = 0
+
+    def mark_user_audio_detected(self) -> None:
+        if self._pending_user_audio_started_at > 0:
+            return
+        self._pending_user_audio_started_at = time.perf_counter()
 
     def mark_user_turn_started(self, transcript: str) -> None:
         self.turn_id += 1
         now = time.perf_counter()
+        self._user_audio_started_at = (
+            self._pending_user_audio_started_at
+            if self._pending_user_audio_started_at > 0
+            else now
+        )
+        self._pending_user_audio_started_at = 0.0
         self._turn_started_at = now
         self._final_transcript_at = now
         self._assistant_text_at = 0.0
+        self._assistant_speech_started_at = 0.0
+        self._stt_to_first_assistant_text_ms = 0.0
+        self._realtime_ttft_ms = None
+        self._realtime_turn_cancelled = False
         logger.info(
             "turn=%s stage=stt_final transcript_chars=%s",
             self.turn_id,
             len(transcript or ""),
         )
 
+    def mark_realtime_metrics(
+        self, *, ttft_seconds: float | None, cancelled: bool
+    ) -> None:
+        if self.turn_id <= 0:
+            return
+        if cancelled:
+            self._realtime_turn_cancelled = True
+            logger.info("turn=%s metric=realtime_cancelled value=true", self.turn_id)
+            return
+        if isinstance(ttft_seconds, (int, float)) and ttft_seconds >= 0:
+            self._realtime_ttft_ms = float(ttft_seconds) * 1000
+
     def mark_assistant_text_started(self) -> None:
+        if self.turn_id <= 0:
+            return
         if self._assistant_text_at > 0:
             return
         self._assistant_text_at = time.perf_counter()
+        self._stt_to_first_assistant_text_ms = (
+            self._assistant_text_at - self._final_transcript_at
+        ) * 1000
         logger.info(
             "turn=%s metric=stt_to_first_assistant_text_ms value=%.1f",
             self.turn_id,
-            (self._assistant_text_at - self._final_transcript_at) * 1000,
+            self._stt_to_first_assistant_text_ms,
         )
 
+    def mark_assistant_speech_started(self) -> None:
+        if self.turn_id <= 0 or self._turn_started_at <= 0:
+            return
+        if self._assistant_speech_started_at > 0:
+            return
+        self._assistant_speech_started_at = time.perf_counter()
+
     def mark_speech_created(self) -> None:
+        if self.turn_id <= 0 or self._turn_started_at <= 0:
+            return
+        if self._last_recorded_turn == self.turn_id:
+            return
+        if self._realtime_turn_cancelled:
+            logger.info(
+                "turn=%s metric=ignored reason=realtime_cancelled",
+                self.turn_id,
+            )
+            return
         now = time.perf_counter()
-        if self._assistant_text_at > 0:
+        stt_to_first_assistant_text_ms = None
+        primary_response_ms = None
+        end_to_end_response_ms = None
+        if self._stt_to_first_assistant_text_ms > 0:
+            stt_to_first_assistant_text_ms = self._stt_to_first_assistant_text_ms
+        if isinstance(self._realtime_ttft_ms, (int, float)):
+            # Prefer realtime TTFT as primary perceived-response proxy when available.
+            primary_response_ms = float(self._realtime_ttft_ms)
+        elif isinstance(stt_to_first_assistant_text_ms, (int, float)):
+            primary_response_ms = float(stt_to_first_assistant_text_ms)
+        if (
+            stt_to_first_assistant_text_ms is None
+            and isinstance(self._realtime_ttft_ms, (int, float))
+        ):
+            # Realtime mode may not emit assistant text event before speech starts.
+            stt_to_first_assistant_text_ms = float(self._realtime_ttft_ms)
+            logger.info(
+                "turn=%s metric=stt_to_first_assistant_text_ms value=%.1f source=realtime_ttft",
+                self.turn_id,
+                stt_to_first_assistant_text_ms,
+            )
+        if isinstance(primary_response_ms, (int, float)):
+            source = (
+                "realtime_ttft"
+                if isinstance(self._realtime_ttft_ms, (int, float))
+                else "assistant_text_event"
+            )
+            logger.info(
+                "turn=%s metric=primary_response_ms value=%.1f source=%s",
+                self.turn_id,
+                primary_response_ms,
+                source,
+            )
+        if self._assistant_speech_started_at > 0:
+            end_to_end_response_ms = (
+                self._assistant_speech_started_at - self._turn_started_at
+            ) * 1000
+            logger.info(
+                "turn=%s metric=end_to_end_response_ms value=%.1f source=assistant_speech_started_event",
+                self.turn_id,
+                end_to_end_response_ms,
+            )
+        assistant_text_to_tts_start_ms = None
+        if self._assistant_text_at > 0 and self._assistant_speech_started_at > 0:
+            assistant_text_to_tts_start_ms = (
+                self._assistant_speech_started_at - self._assistant_text_at
+            ) * 1000
             logger.info(
                 "turn=%s metric=assistant_text_to_tts_start_ms value=%.1f",
                 self.turn_id,
-                (now - self._assistant_text_at) * 1000,
+                assistant_text_to_tts_start_ms,
             )
+        stt_final_to_tts_start_ms = None
         if self._turn_started_at > 0:
+            stt_final_to_tts_start_ms = (now - self._turn_started_at) * 1000
             logger.info(
                 "turn=%s metric=stt_final_to_tts_start_ms value=%.1f",
                 self.turn_id,
-                (now - self._turn_started_at) * 1000,
+                stt_final_to_tts_start_ms,
             )
+        if (
+            end_to_end_response_ms is None
+            and primary_response_ms is None
+            and stt_to_first_assistant_text_ms is None
+            and assistant_text_to_tts_start_ms is None
+            and stt_final_to_tts_start_ms is None
+        ):
+            return
+        record_latency_sample(
+            turn=self.turn_id,
+            primary_response_ms=primary_response_ms,
+            end_to_end_response_ms=end_to_end_response_ms,
+            stt_to_first_assistant_text_ms=stt_to_first_assistant_text_ms,
+            assistant_text_to_tts_start_ms=assistant_text_to_tts_start_ms,
+            stt_final_to_tts_start_ms=stt_final_to_tts_start_ms,
+            session_id=self.session_id,
+        )
+        self._last_recorded_turn = self.turn_id
 
 
 def _read_attr(event: object, key: str, default: object = None) -> object:
@@ -183,13 +310,6 @@ def build_tools(config: dict, user_id: str) -> list[llm.FunctionTool]:
         return json.dumps(details)
 
     @llm.function_tool()
-    async def search_listings_tool() -> str:
-        if not tool_enabled("search_listings"):
-            return "Tool disabled."
-        listings = search_listings(location="", budget=0, bedrooms=0)
-        return json.dumps(listings)
-
-    @llm.function_tool()
     async def check_availability_tool(date: str) -> str:
         if not tool_enabled("check_availability"):
             return "Tool disabled."
@@ -246,7 +366,6 @@ def build_tools(config: dict, user_id: str) -> list[llm.FunctionTool]:
 
     return [
         get_development_details_tool,
-        search_listings_tool,
         check_availability_tool,
         schedule_viewing_tool,
         send_sms_confirmation_tool,
@@ -284,6 +403,7 @@ async def entrypoint(ctx: JobContext):
     full_prompt = "\n".join(prompt_sections)
 
     env = AppConfig()
+
     def build_chained_agent_and_session(
         tools: list[llm.FunctionTool],
     ) -> tuple[Agent, AgentSession]:
@@ -327,7 +447,17 @@ async def entrypoint(ctx: JobContext):
                 model=env.OPENAI_REALTIME_MODEL,
                 voice=env.OPENAI_REALTIME_VOICE,
                 api_key=env.OPENAI_API_KEY,
+                modalities=["text", "audio"],
+                input_audio_transcription=openai_realtime_types.AudioTranscription(
+                    model="gpt-4o-transcribe",
+                ),
                 input_audio_noise_reduction="near_field",
+                turn_detection=openai_realtime_types.realtime_audio_input_turn_detection.SemanticVad(
+                    type="semantic_vad",
+                    create_response=True,
+                    eagerness="auto",
+                    interrupt_response=True,
+                ),
             ),
             min_endpointing_delay=env.AGENT_MIN_ENDPOINTING_DELAY,
             max_endpointing_delay=env.AGENT_MAX_ENDPOINTING_DELAY,
@@ -336,13 +466,16 @@ async def entrypoint(ctx: JobContext):
         )
         return realtime_agent, realtime_session
 
-    def attach_observers(session: AgentSession, latency_tracker: TurnLatencyTracker) -> None:
+    def attach_observers(
+        session: AgentSession, latency_tracker: TurnLatencyTracker
+    ) -> None:
         @session.on("user_input_transcribed")
         def on_user_input_transcribed(event):
+            transcript = str(_read_attr(event, "transcript", ""))
+            if transcript.strip():
+                latency_tracker.mark_user_audio_detected()
             if bool(_read_attr(event, "is_final", False)):
-                latency_tracker.mark_user_turn_started(
-                    str(_read_attr(event, "transcript", ""))
-                )
+                latency_tracker.mark_user_turn_started(transcript)
 
         @session.on("conversation_item_added")
         def on_conversation_item_added(event):
@@ -353,15 +486,52 @@ async def entrypoint(ctx: JobContext):
         def on_speech_created(_event):
             latency_tracker.mark_speech_created()
 
+        @session.on("agent_started_speaking")
+        def on_agent_started_speaking(_event):
+            latency_tracker.mark_assistant_speech_started()
+
+        @session.on("speech_started")
+        def on_speech_started(_event):
+            latency_tracker.mark_assistant_speech_started()
+
         @session.on("metrics_collected")
         def on_metrics_collected(event):
-            metric_type = str(_read_attr(_read_attr(event, "metrics"), "type", ""))
+            metrics = _read_attr(event, "metrics")
+            metric_type = str(_read_attr(metrics, "type", ""))
+            if metric_type == "realtime_model_metrics":
+                ttft_value = _read_attr(metrics, "ttft")
+                ttft_seconds = (
+                    float(ttft_value)
+                    if isinstance(ttft_value, (int, float))
+                    else None
+                )
+                latency_tracker.mark_realtime_metrics(
+                    ttft_seconds=ttft_seconds,
+                    cancelled=bool(_read_attr(metrics, "cancelled", False)),
+                )
             if metric_type in HIGH_SIGNAL_METRICS:
                 logger.info("livekit_metrics event=%s", event)
 
-    latency_tracker = TurnLatencyTracker()
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
-    participant = await ctx.wait_for_participant()
+    room_sid = getattr(ctx.room, "sid", "")
+    if inspect.isawaitable(room_sid):
+        try:
+            room_sid = await room_sid
+        except Exception:
+            room_sid = ""
+    room_identifier = (
+        str(room_sid).strip()
+        or str(getattr(ctx.room, "name", "")).strip()
+        or "unknown-session"
+    )
+    latency_tracker = TurnLatencyTracker(session_id=room_identifier)
+    try:
+        participant = await ctx.wait_for_participant()
+    except RuntimeError as exc:
+        # Happens when the room closes before participant join finishes.
+        # Treat this as a normal early-disconnect lifecycle event.
+        logger.warning("room closed before participant joined: %s", exc)
+        return
 
     inferred_user_id = _extract_user_id(str(getattr(participant, "identity", "")))
     room_user_id = get_user_id_for_room(str(getattr(ctx.room, "name", "")))

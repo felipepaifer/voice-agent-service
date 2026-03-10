@@ -37,7 +37,9 @@ def send_sms_confirmation(
 
     normalized_phone = _normalize_phone(phone)
 
-    if not normalized_phone or not message:
+    sms_message = (message or "").strip()
+
+    if not normalized_phone or not sms_message:
         return {"status": "failed", "reason": "Phone and message required."}
     if not _is_e164(normalized_phone):
         return {
@@ -76,7 +78,7 @@ def send_sms_confirmation(
         sms = client.messages.create(
             to=normalized_phone,
             from_=from_number,
-            body=message,
+            body=sms_message,
         )
     except TwilioRestException as exc:
         logger.warning(

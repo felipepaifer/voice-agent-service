@@ -17,8 +17,10 @@ def start_session():
     )
 
     session = create_session_token(room=room, identity=identity)
+
     if user_id:
         remember_session_user(room=room, user_id=user_id)
+
     return jsonify(session)
 
 
@@ -31,4 +33,5 @@ def trigger_sms():
     result = send_sms_confirmation(
         phone=phone, message=message, permission_granted=permission_granted
     )
+    
     return jsonify(result)

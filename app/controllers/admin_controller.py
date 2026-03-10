@@ -7,6 +7,7 @@ from app.services.google_calendar_service import (
     finalize_oauth_callback,
     get_connection_status,
 )
+from app.services.voice_metrics_service import get_latency_metrics_snapshot
 
 
 def get_config():
@@ -73,15 +74,24 @@ def google_callback():
 def google_status():
     user_id = str(request.args.get("user_id", "")).strip()
     status = get_connection_status(user_id)
+
     return jsonify(status)
 
 
 def google_disconnect():
     payload = request.get_json(silent=True) or {}
     user_id = str(payload.get("user_id", "")).strip()
+    
     if not user_id:
         return jsonify({"error": "Missing user_id"}), 400
+
     result = disconnect_user(user_id)
+
     if result.get("status") == "error":
         return jsonify(result), 400
+
     return jsonify(result)
+
+
+def get_latency_metrics():
+    return jsonify(get_latency_metrics_snapshot())

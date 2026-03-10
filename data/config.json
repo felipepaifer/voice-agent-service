@@ -6,7 +6,6 @@
     "voice": "Rachel"
   },
   "tools": {
-    "search_listings": true,
     "check_availability": true,
     "schedule_viewing": true,
     "google_calendar_mcp": true,
