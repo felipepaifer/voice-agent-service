@@ -1,0 +1,113 @@
+{
+  "system_prompt": "You are a real estate developer assistant on a phone call. Use short sentences. Acknowledge, confirm, and verify. Never ask for or accept payment info, SSNs, or bank details. Before sending SMS, ask: 'Can I text you a confirmation?'",
+  "persona": {
+    "name": "Rachel",
+    "greeting": "Hi, this is Rachel from Soul LA Residences. How can I help?",
+    "voice": "Rachel"
+  },
+  "tools": {
+    "search_listings": true,
+    "check_availability": true,
+    "schedule_viewing": true,
+    "google_calendar_mcp": true,
+    "send_sms_confirmation": true
+  },
+  "development": {
+    "id": "DEV-LA-001",
+    "name": "Soul LA Residences",
+    "city": "Los Angeles, CA",
+    "address": "1200 Sunset Blvd, Los Angeles, CA",
+    "developer": "Soul Urban Development",
+    "stage": "Under Construction",
+    "launch_date": "2026-09-15",
+    "expected_completion": "2028-03-01",
+    "total_units": 96,
+    "floors": 8,
+    "elevators": 2,
+    "parking_type": "Underground Garage",
+    "description": "Soul LA Residences is a contemporary residential development designed for buyers who want modern architecture, efficient floor plans, and quick access to the best of Los Angeles. The project blends comfort, design, and convenience in one of the city's most vibrant areas.",
+    "story": "Soul LA Residences blends thoughtful architecture, practical floor plans, and hospitality-inspired shared spaces to create a comfortable city lifestyle. Designed with modern professionals and young families in mind, the development focuses on natural light, open layouts, and high-quality finishes.",
+    "neighborhood": "Located on Sunset Blvd, the project gives residents easy access to restaurants, cafes, fitness studios, parks, and major commuter routes connecting to Downtown LA, Hollywood, and Silver Lake.",
+    "nearby": [
+      "Silver Lake dining district",
+      "Echo Park Lake",
+      "Sunset Junction cafes",
+      "Dodger Stadium",
+      "Downtown Los Angeles (10 minutes)",
+      "Multiple Metro transit stops",
+      "Boutique gyms and yoga studios"
+    ],
+    "units": {
+      "one_bedroom": {
+        "type": "1 Bedroom Apartment",
+        "bedrooms": 1,
+        "bathrooms": 1,
+        "area_sqft_range": "650 - 720",
+        "area_sqm_range": "60 - 67",
+        "starting_price": 850000,
+        "average_price": 920000,
+        "garage_spots": 1,
+        "features": [
+          "Open concept living room and kitchen",
+          "Private balcony in most units",
+          "Walk-in closet",
+          "Smart home thermostat",
+          "Energy efficient appliances",
+          "Floor-to-ceiling windows"
+        ]
+      },
+      "two_bedroom": {
+        "type": "2 Bedroom Apartment",
+        "bedrooms": 2,
+        "bathrooms": 2,
+        "area_sqft_range": "950 - 1100",
+        "area_sqm_range": "88 - 102",
+        "starting_price": 1150000,
+        "average_price": 1250000,
+        "garage_spots": 2,
+        "features": [
+          "Open kitchen with island",
+          "Primary suite with private bathroom",
+          "Large balcony or terrace",
+          "Separate laundry space",
+          "Smart home system",
+          "High ceilings"
+        ]
+      }
+    },
+    "amenities": [
+      "Rooftop infinity pool",
+      "Rooftop lounge with skyline views",
+      "Fitness center with modern equipment",
+      "Coworking lounge with private meeting rooms",
+      "Resident club room",
+      "Outdoor BBQ and dining area",
+      "Pet spa and pet washing station",
+      "24-hour concierge service",
+      "Secure package room",
+      "Bike storage",
+      "Electric vehicle charging stations",
+      "Landscaped courtyard",
+      "Yoga and wellness studio"
+    ],
+    "building_features": [
+      "Contemporary glass and concrete architecture",
+      "Energy efficient building design",
+      "Smart building access control",
+      "Secure lobby with reception",
+      "Keyless entry system",
+      "Package lockers for deliveries"
+    ]
+  },
+  "scheduling": {
+    "timezone": "America/Los_Angeles",
+    "start_hour": 9,
+    "end_hour": 20,
+    "slot_minutes": 60
+  },
+  "notifications": {
+    "default_phone": "+5521971587779",
+    "use_default_phone": true,
+    "require_phone_confirmation": false
+  }
+}

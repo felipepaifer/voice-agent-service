@@ -1,0 +1,14 @@
+flask
+flask-cors
+python-dotenv
+livekit-agents
+livekit-api
+livekit-plugins-openai
+livekit-plugins-elevenlabs
+livekit-plugins-silero
+twilio
+celery
+google-api-python-client
+google-auth
+google-auth-httplib2
+google-auth-oauthlib

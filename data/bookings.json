@@ -1,0 +1,113 @@
+[
+  {
+    "listing_id": "DEV-LA-001",
+    "datetime": "2026-03-10 16:00",
+    "name": "Felipe Fernandes",
+    "phone": "+5521971587779"
+  },
+  {
+    "listing_id": "DEV-LA-001",
+    "datetime": "2026-03-10 15:00",
+    "name": "Jack Sparrow",
+    "phone": "+55 21 971 58 7779"
+  },
+  {
+    "listing_id": "DEV-LA-001",
+    "datetime": "2026-03-10 17:00",
+    "name": "Gregory Jack Peter Walkson",
+    "phone": "+5521971587779"
+  },
+  {
+    "listing_id": "DEV-LA-001",
+    "datetime": "2026-03-10 14:00",
+    "name": "David Cargson",
+    "phone": "+5521971587779"
+  },
+  {
+    "listing_id": "DEV-LA-001",
+    "datetime": "2026-03-10 18:00",
+    "name": "Pancaka Fernandes",
+    "phone": "+5521971587779"
+  },
+  {
+    "listing_id": "DEV-LA-001",
+    "datetime": "2026-03-10 13:00",
+    "name": "Jos\u00e9 Hern\u00e1ndez",
+    "phone": "+5521971587779"
+  },
+  {
+    "listing_id": "DEV-LA-001",
+    "datetime": "2026-03-16 09:00",
+    "name": "Caipirinha",
+    "phone": "+55219722227778"
+  },
+  {
+    "listing_id": "DEV-LA-001",
+    "datetime": "2026-03-11 14:00",
+    "name": "Matthew Cohen",
+    "phone": "+5521971587779"
+  },
+  {
+    "listing_id": "DEV-LA-001",
+    "datetime": "2026-03-10 10:00",
+    "name": "Felipe Fernandes",
+    "phone": "+55 21 971 58 7779",
+    "user_id": "user-cbda9b76",
+    "calendar_event_id": "jrkd1nubh83bssphd0i8t94jg0",
+    "calendar_event_url": "https://www.google.com/calendar/event?eid=anJrZDFudWJoODNic3NwaGQwaTh0OTRqZzAgZmVsaXBlY3BmZXJuYW5kZXNAbQ"
+  },
+  {
+    "listing_id": "DEV-LA-001",
+    "datetime": "2026-03-11 13:00",
+    "name": "Felipe Fernandes",
+    "phone": "+55 21 971-58-7779",
+    "user_id": "user-cbda9b76",
+    "calendar_event_id": "8hpap7e6jqbmcrpsoqvb1vq6k8",
+    "calendar_event_url": "https://www.google.com/calendar/event?eid=OGhwYXA3ZTZqcWJtY3Jwc29xdmIxdnE2azggZmVsaXBlY3BmZXJuYW5kZXNAbQ"
+  },
+  {
+    "listing_id": "DEV-LA-001",
+    "datetime": "2026-03-11 17:00",
+    "name": "Felipe Fernandes",
+    "phone": "+55 21 97158-7779",
+    "user_id": "user-cbda9b76",
+    "calendar_event_id": "ecuivvatrk0ta5jfeth92msfms",
+    "calendar_event_url": "https://www.google.com/calendar/event?eid=ZWN1aXZ2YXRyazB0YTVqZmV0aDkybXNmbXMgZmVsaXBlY3BmZXJuYW5kZXNAbQ"
+  },
+  {
+    "listing_id": "DEV-LA-001",
+    "datetime": "2026-03-11 15:00",
+    "name": "Philippe",
+    "phone": "",
+    "user_id": "user-cbda9b76",
+    "calendar_event_id": "ckaqrejrjsmq808p00eq2qgflg",
+    "calendar_event_url": "https://www.google.com/calendar/event?eid=Y2thcXJlanJqc21xODA4cDAwZXEycWdmbGcgZmVsaXBlY3BmZXJuYW5kZXNAbQ"
+  },
+  {
+    "listing_id": "DEV-LA-001",
+    "datetime": "2026-03-11 16:00",
+    "name": "Rafael",
+    "phone": "",
+    "user_id": "user-cbda9b76",
+    "calendar_event_id": "vf9gt83j3bqld18f9jv835vh64",
+    "calendar_event_url": "https://www.google.com/calendar/event?eid=dmY5Z3Q4M2ozYnFsZDE4ZjlqdjgzNXZoNjQgZmVsaXBlY3BmZXJuYW5kZXNAbQ"
+  },
+  {
+    "listing_id": "DEV-LA-001",
+    "datetime": "2026-03-11 09:00",
+    "name": "Mateus",
+    "phone": "",
+    "user_id": "user-cbda9b76",
+    "calendar_event_id": "7ohhe0c4k07c5p2394rghgleig",
+    "calendar_event_url": "https://www.google.com/calendar/event?eid=N29oaGUwYzRrMDdjNXAyMzk0cmdoZ2xlaWcgZmVsaXBlY3BmZXJuYW5kZXNAbQ"
+  },
+  {
+    "listing_id": "DEV-LA-001",
+    "datetime": "2026-03-11 19:00",
+    "name": "Mauro",
+    "phone": "+5521971587779",
+    "user_id": "user-cbda9b76",
+    "calendar_event_id": "p999r6afsd5ecrcjjtg5ob4n6k",
+    "calendar_event_url": "https://www.google.com/calendar/event?eid=cDk5OXI2YWZzZDVlY3Jjamp0ZzVvYjRuNmsgZmVsaXBlY3BmZXJuYW5kZXNAbQ"
+  }
+]

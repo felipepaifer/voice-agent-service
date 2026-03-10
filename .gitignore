@@ -1,0 +1,49 @@
+# OS / editor
+.DS_Store
+.vscode/
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Python cache / bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtualenvs
+.venv/
+venv/
+env/
+ENV/
+
+# Test / coverage / tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# Logs / runtime
+*.log
+logs/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Runtime and secrets in backend data
+data/google_tokens.json
+data/google_oauth_state.json
+data/session_registry.json

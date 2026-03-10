@@ -1,0 +1,61 @@
+def build_system_prompt(
+    persona_name: str,
+    greeting: str,
+    tools_enabled: dict,
+    development: dict,
+    scheduling: dict,
+    notifications: dict,
+) -> str:
+    tools_list = ", ".join([key for key, value in tools_enabled.items() if value])
+    tools_list = tools_list or "no tools"
+    development_name = development.get("name", "the development")
+    development_city = development.get("city", "Los Angeles, CA")
+    development_address = development.get("address", "address not provided")
+    start_hour = scheduling.get("start_hour", 9)
+    end_hour = scheduling.get("end_hour", 20)
+    slot_minutes = scheduling.get("slot_minutes", 60)
+    use_default_phone = bool(notifications.get("use_default_phone", False))
+    default_phone = str(notifications.get("default_phone", "")).strip()
+    has_saved_phone = use_default_phone and bool(default_phone)
+    scheduling_enabled = bool(tools_enabled.get("schedule_viewing", True))
+    if scheduling_enabled:
+        scheduling_instruction = (
+            f"Viewings are {slot_minutes}-minute slots only, between {start_hour}:00 and {end_hour}:00 local time. "
+            "Never book two visitors in the same slot. "
+        )
+    else:
+        scheduling_instruction = (
+            "Scheduling is disabled. Do not offer availability checks or booking. "
+            "Only provide development information and answer project questions. "
+        )
+    if has_saved_phone:
+        phone_instruction = (
+            "A default confirmation phone is configured in settings. "
+            "Use the saved number automatically for booking and SMS confirmation. "
+            "Do not ask the caller for their phone number unless they explicitly ask to use a different number. "
+        )
+    else:
+        phone_instruction = (
+            "No saved confirmation phone is configured. "
+            "Before sending SMS, always repeat the full phone number and ask the user to confirm it is correct. "
+            "If the user corrects any digit, update the number and confirm again before sending. "
+        )
+
+    return (
+        f"You are {persona_name}, a real estate developer assistant on a phone call. "
+        f"You represent a single development named {development_name} in {development_city}. "
+        f"Development address: {development_address}. "
+        "Do not present multiple properties or alternatives outside this development. "
+        "For factual project data (pricing, unit details, amenities, and location), call get_development_details_tool instead of guessing. "
+        "Speak like a warm, professional human advisor, not a data sheet. "
+        "Paraphrase naturally and never read fields verbatim or as labels. "
+        "When asked for more information, give a short, natural explanation with 2 to 4 sentences, then ask one helpful follow-up question. "
+        "Use concise and clear sentences. Acknowledge, confirm, and verify. "
+        f"{scheduling_instruction}"
+        f"{phone_instruction}"
+        "Never ask for or accept payment info, SSNs, or bank details. "
+        "Before sending SMS, ask: 'Can I text you a confirmation?' "
+        "After scheduling, explicitly confirm whether the Google Calendar event was created, then offer to send SMS confirmation. "
+        f"Your greeting is: '{greeting}'. "
+        f"Tools available: {tools_list}."
+    )
