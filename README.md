@@ -4,27 +4,46 @@ Backend-only repo for a LiveKit voice agent that schedules real estate viewings.
 
 ## Setup (< 5 minutes)
 
+Prerequisites:
+
+- Docker + Docker Compose
+- API keys configured in `.env`
+
 1. Copy env example:
    ```bash
    cp .env.example .env
    ```
-2. Add API keys in `.env`.
-3. Build and run:
+2. Add API keys in `.env` (at minimum: `OPENAI_API_KEY`, `ADMIN_API_KEY`, and LiveKit vars if you are creating sessions).
+3. Start the server:
    ```bash
    docker-compose up --build
    ```
 
-Backend runs on `http://localhost:8000`.
+This starts:
+
+- `backend` on `http://localhost:8000`
+- `agent` worker (`app/agents/livekit/agent.py`)
+
+If you only want the API server:
+
+```bash
+docker-compose up --build backend
+```
+
+## API Authentication
+
+All `/api/*` endpoints (except Google OAuth callback) require the header:
+
+`x-api-key: <ADMIN_API_KEY>`
+
+If `ADMIN_API_KEY` is missing, protected endpoints return a server configuration error.
 
 ## Running the LiveKit Agent
 
-The LiveKit agent is an optional service. Start it with:
+The agent reads `data/config.json` for prompt/persona/tools and can use either:
 
-```bash
-docker-compose --profile agent up --build
-```
-
-The agent reads `data/config.json` for prompt/persona/tools.
+- OpenAI Realtime (`OPENAI_REALTIME_ENABLED=true`)
+- Chained STT -> LLM -> TTS (`OPENAI_REALTIME_ENABLED=false`)
 
 ## LiveKit Setup
 
@@ -51,6 +70,15 @@ and keeps your existing tool-calling behavior. Set `OPENAI_REALTIME_ENABLED=fals
 fall back to the chained STT -> LLM -> TTS pipeline.
 
 The backend endpoint `POST /api/agent/session` returns a token, room, identity, and URL.
+
+Example:
+
+```bash
+curl -X POST http://localhost:8000/api/agent/session \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $ADMIN_API_KEY" \
+  -d '{"room":"real-estate-demo","user_id":"user-123"}'
+```
 
 ## Google Calendar OAuth (Per User)
 
@@ -84,36 +112,20 @@ than building a custom audio pipeline.
 
 ## Design Decisions
 
-- Flask app factory + layered structure (routes/controllers/services/models).
+- Flask app factory + layered structure (routes/controllesrs/services/models).
 - JSON files for config and bookings to avoid database setup.
 - Tool-level guardrails: SMS requires explicit permission.
-- Prompts are modular in `livekit_agent/prompts` with variable injection.
+- Prompts are modular in `app/agents/livekit/prompts` with variable injection.
+- Booking writes are committed only after calendar provider success when calendar integration is enabled.
 
 ## What I'd Improve with More Time
 
-- Robust session state tracking and retries.
-- Better intent handling and slot filling.
-- Twilio voice/PSTN integration for real phone calls.
-- Automated tests for tool invocation.
+- Production authentication.
+- Multi-user session isolation and tenant-aware config so concurrent calls never share state or tools.
+- Queue-based post-call analysis pipeline (Celery/Redis) for transcript summarization, QA scoring, and follow-up actions without blocking live calls.
+- Stronger resilience patterns for real-time workloads: retries, idempotency keys, and dead-letter handling for failed tasks.
+- Automated behavior tests for critical tool-calling flows and guardrails.
 
 ## Bonus (Optional)
 
-The agent now emits latency-focused logs per turn showing the full timestamp chain.
-You can inspect these logs from the `agent` container to identify whether delay is
-mostly STT, LLM generation, or TTS startup.
-
-## Latency Measurement Methodology
-
-The backend now treats two latency KPIs as authoritative:
-
-- `llm_time_to_first_token_ms` (TTFT): provider-reported `ttft` converted to milliseconds.
-- `end_to_end_response_ms`: `firstAudioPlaybackAt - speechEndAt`.
-
-Notes:
-
-- In chained mode, TTFT maps to LLM text-token generation latency.
-- In realtime mode, TTFT reflects realtime model first output token timing.
-- Provider timestamps are normalized into a single clock domain before durations are computed.
-
-Legacy metrics remain in the payload for compatibility, but they are no longer used as
-primary KPIs.
+I picked **Latency** as the bonus. The agent emits per-turn latency logs with a timestamp chain so we can quickly locate where response delay is introduced and tune the pipeline without changing core business logic. With more time, I would extend this into a queue-based post-call analysis worker (Celery/Redis) that aggregates turn-level metrics and transcript insights for QA and continuous prompt/tool optimization.
