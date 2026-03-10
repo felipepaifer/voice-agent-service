@@ -98,30 +98,22 @@ than building a custom audio pipeline.
 
 ## Bonus (Optional)
 
-The agent now emits latency-focused logs per turn (STT final -> first assistant text
--> TTS start). You can inspect these logs from the `agent` container to identify
-whether delay is mostly STT, LLM generation, or TTS startup.
+The agent now emits latency-focused logs per turn showing the full timestamp chain.
+You can inspect these logs from the `agent` container to identify whether delay is
+mostly STT, LLM generation, or TTS startup.
 
 ## Latency Measurement Methodology
 
-The latency dashboard reports turn-level metrics intended to approximate user-perceived
-responsiveness in live calls:
+The backend now treats two latency KPIs as authoritative:
 
-- `primary_response_ms`: headline perceived-response KPI (realtime TTFT when available, otherwise first assistant text timing)
-- `end_to_end_response_ms`: from final user transcript to assistant speech start (preferred), with TTFT fallback when speech-start events are unavailable
-- `stt_to_first_assistant_text_ms`: from final user transcript to first assistant text
-- `assistant_text_to_tts_start_ms`: from first assistant text to speech creation
-- `stt_final_to_tts_start_ms`: diagnostic timing from final transcript to speech lifecycle creation
+- `llm_time_to_first_token_ms` (TTFT): provider-reported `ttft` converted to milliseconds.
+- `end_to_end_response_ms`: `firstAudioPlaybackAt - speechEndAt`.
 
-For realtime mode, assistant text events can be delayed or absent. In those cases,
-the tracker uses realtime model TTFT as the preferred primary-response signal and
-also as a fallback proxy for first assistant response timing.
+Notes:
 
-To improve data quality, the tracker excludes non-usable rows from reporting:
+- In chained mode, TTFT maps to LLM text-token generation latency.
+- In realtime mode, TTFT reflects realtime model first output token timing.
+- Provider timestamps are normalized into a single clock domain before durations are computed.
 
-- cancelled realtime turns
-- turns without any numeric latency values
-- synthetic/invalid turn ids (`turn <= 0`)
-
-The dashboard uses percentile summaries (`p50`, `p95`) over a rolling in-memory/file
-window to show both typical latency and worst-case spikes during demos.
+Legacy metrics remain in the payload for compatibility, but they are no longer used as
+primary KPIs.

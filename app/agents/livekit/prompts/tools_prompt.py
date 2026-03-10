@@ -2,6 +2,7 @@ def build_tools_prompt(
     tools_enabled: dict | None = None, notifications: dict | None = None
 ) -> str:
     tools = tools_enabled or {}
+    sms_enabled = bool(tools.get("send_sms_confirmation", True))
     notifications_cfg = notifications or {}
     use_default_phone = bool(notifications_cfg.get("use_default_phone", False))
     has_saved_phone = bool(str(notifications_cfg.get("default_phone", "")).strip())
@@ -13,13 +14,34 @@ def build_tools_prompt(
         )
 
     sms_instruction = (
-        "Before calling send_sms_confirmation, repeat the phone number and get explicit user confirmation. "
+        "SMS confirmation is disabled. "
+        "Do not ask for SMS permission and do not offer to send SMS confirmation. "
     )
-    if use_default_phone and has_saved_phone:
+    action_pacing_instruction = (
+        "Avoid long silent gaps by acknowledging quickly before each lookup or booking step. "
+    )
+    sms_usage_instruction = ""
+    sms_flow_instruction = ""
+    if sms_enabled:
+        action_pacing_instruction = (
+            "Avoid long silent gaps by acknowledging quickly before each lookup, booking step, or SMS send. "
+        )
         sms_instruction = (
-            "A default notification phone is configured. "
-            "Use that saved number for both schedule_viewing_tool and send_sms_confirmation. "
-            "Do not ask the user for a phone number unless they ask to use a different one. "
+            "Before calling send_sms_confirmation, repeat the phone number and get explicit user confirmation. "
+        )
+        sms_usage_instruction = (
+            "Do not ask the caller to provide or compose SMS message text. "
+            "When calling send_sms_confirmation, always provide a short confirmation SMS message in the message argument. "
+        )
+        if use_default_phone and has_saved_phone:
+            sms_instruction = (
+                "A default notification phone is configured. "
+                "Use that saved number for both schedule_viewing_tool and send_sms_confirmation. "
+                "Do not ask the user for a phone number unless they ask to use a different one. "
+            )
+        sms_flow_instruction = (
+            "After successful scheduling, ask for permission to send SMS confirmation and then call send_sms_confirmation when the user agrees. "
+            "When SMS is approved, say 'I'm sending your confirmation text now.' and call send_sms_confirmation immediately in the same turn. "
         )
 
     return (
@@ -35,13 +57,16 @@ def build_tools_prompt(
         "Never alter the caller's provided name. If unsure, ask the caller to repeat and confirm before scheduling. "
         "After schedule_viewing_tool returns, clearly tell the user whether the calendar event was created or skipped. "
         "If calendar creation failed, explain that booking was not completed and ask to retry. "
+        "Before any action that may take a few seconds, first say one short, natural progress line. "
+        "Use plain human language such as 'Just a moment, I'm checking times for you.' or 'One moment, I'm sending that text now.' "
+        "After the action returns, immediately say the result in plain language with no technical details. "
         "You may briefly describe your next step in one natural, human sentence. "
         "Do not mention tools, APIs, payloads, templates, or technical processing. "
-        "Do not ask the caller to provide or compose SMS message text. "
-        "When calling send_sms_confirmation, always provide a short confirmation SMS message in the message argument. "
+        "Never say you are 'calling a tool' or 'executing a function'. "
+        f"{action_pacing_instruction}"
+        f"{sms_usage_instruction}"
         "Use natural examples like: 'Let me quickly check that for you.' or 'I'm sending your confirmation text now.' "
         f"{sms_instruction}"
-        "After successful scheduling, ask for permission to send SMS confirmation and then call send_sms_confirmation when the user agrees. "
-        "When SMS is approved, say 'I'm sending your confirmation text now.' and call send_sms_confirmation immediately in the same turn. "
+        f"{sms_flow_instruction}"
         "Offer two available times when possible."
     )
